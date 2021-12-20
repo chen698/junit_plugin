@@ -4,18 +4,50 @@ import "./Widget.css"
 import {Box} from "@mui/material";
 
 export default function Widget() {
-    const { runnerIp } = useParams();
-    const [testsData, setTestsData] = useState({})
+    const { jobUuid } = useParams();
+    console.log(jobUuid);
+    const [runnerIps, setRunnerIps] = useState([]);
+    const [testsData, setTestsData] = useState({
+        failures: 0,
+        tests: 0,
+        time: 0,
+    });
 
     useEffect(() => {
-        fetch(`/api/all-tests/${runnerIp}`)
+        fetch(`/api/runners/${jobUuid}`)
             .then(response => response.json())
-            .then(data => setTestsData(data[0]));
-    }, [runnerIp]);
+            .then(data => setRunnerIps(() => {
+                console.log(data)
+                return data;
+            }))
+    }, [jobUuid]);
 
-    const passed = testsData ? testsData.tests - testsData.failures : 0;
-    const failures = testsData ? testsData.failures : 0;
-    const duration = testsData ? testsData.time : 0;
+    useEffect(() => {
+        console.log("hit!!!")
+        Promise.all(
+            runnerIps.map(ip =>
+                fetch(`/api/all-tests/${ip}`)
+                    .then(response => {
+                        if (response.ok) {
+                            return response.json();
+                        }
+                    })
+                    .then(data => setTestsData(prevState => {
+                        console.log(prevState);
+                        prevState.failures += data[0].failures;
+                        prevState.tests += data[0].tests;
+                        prevState.time += data[0].time;
+                        console.log(prevState);
+                        return prevState;
+                    }))
+                    .catch(err => console.error(err))
+            )
+        ).then(() => console.log('done'))
+    }, [runnerIps])
+
+    const passed = testsData.tests - testsData.failures;
+    const failures = testsData.failures;
+    const duration = testsData.time;
 
     const status = <span className={failures > 0 ? "status-failure" : "status-success"}>
         <i className="feather icon-check-circle"/>&nbsp;{failures > 0 ? failures +" Failures" : "Success"}
